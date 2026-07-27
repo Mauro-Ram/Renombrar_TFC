@@ -1,3 +1,4 @@
-# Los .bat deben conservar saltos de linea de Windows (CRLF) o cmd.exe
-# puede fallar al leer las etiquetas y los saltos "goto".
-*.bat text eol=crlf
+# Los .bat se guardan tal cual, con saltos de linea de Windows (CRLF).
+# Sin esto Git los normaliza a LF y cmd.exe puede fallar al resolver
+# las etiquetas y los saltos "goto".
+*.bat -text
