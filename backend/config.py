@@ -115,7 +115,9 @@ def bank_code_for(name: str) -> str:
     key = normalize_key(name)
     if key in BANK_CODE_ALIASES:
         return BANK_CODE_ALIASES[key]
-    return sanitize_token(name).replace("_", "")
+    # El código va sin espacios para que se lea como un solo campo dentro
+    # del nombre, que ya usa el espacio como separador.
+    return sanitize_token(name).replace(" ", "")
 
 
 def known_bank_codes() -> list[str]:
