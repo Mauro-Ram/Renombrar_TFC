@@ -49,20 +49,65 @@ copias dentro del ZIP.
 - **`Rename_PC`** (esta rama): rama de uso local, para correrla directamente en
   una PC de oficina (Windows) sin servidor ni Docker.
 
-## Ejecutar en la PC
+## Instalar en una PC nueva
 
-Lo único que hay que instalar es [Python 3.10+](https://www.python.org/downloads/)
-(al instalarlo, marcar la casilla **"Add Python to PATH"**).
+### 1. Instalar Python
 
-1. Descarga/clona esta rama del repositorio.
-2. Haz doble clic en `run_local.bat`.
-3. El script crea un entorno virtual, instala las dependencias y abre
-   automáticamente http://127.0.0.1:8000 en el navegador.
-4. Para volver a usar la app, solo vuelve a hacer doble clic en `run_local.bat`
-   (la segunda vez es más rápido porque ya no reinstala nada).
+Descarga Python 3.10 o superior desde **<https://www.python.org/downloads/>**
+— *no desde la Microsoft Store*.
 
-La app corre **solo en esta computadora**: `127.0.0.1` no es accesible desde la
+En la **primera pantalla** del instalador, antes de darle a "Install",
+**marca la casilla `Add python.exe to PATH`**. Es el paso que más se olvida y
+sin él Windows no encuentra Python después.
+
+### 2. Descargar el programa
+
+Si bajas el ZIP desde GitHub, **descomprímelo primero** (clic derecho →
+"Extraer todo"). El `.bat` no funciona ejecutándolo desde dentro del ZIP.
+
+### 3. Ejecutar
+
+1. Haz doble clic en `run_local.bat`.
+2. La primera vez tarda un par de minutos preparando el entorno.
+3. Se abre solo http://127.0.0.1:8000 en el navegador.
+4. Las siguientes veces arranca en segundos.
+
+La app corre **solo en esa computadora**: `127.0.0.1` no es accesible desde la
 red, y los PDF nunca salen del equipo.
+
+## Si no arranca
+
+El `.bat` verifica cada paso y muestra el motivo en pantalla. Los casos más
+frecuentes en una laptop nueva:
+
+### "Windows no encuentra Python" (aunque ya lo instalaste)
+
+- **Se instaló sin marcar "Add python.exe to PATH".** Vuelve a abrir el
+  instalador de Python, elige *Modify* (o reinstala) y marca la casilla.
+- **El alias de la Microsoft Store está capturando el comando.** En Windows 10
+  y 11, escribir `python` abre la tienda en vez del programa. Ve a
+  *Configuración → Aplicaciones → Configuración avanzada de la aplicación →
+  Alias de ejecución de la aplicación* y **apaga** `python.exe` y `python3.exe`.
+- **Falta reiniciar.** El PATH se refresca al iniciar sesión de nuevo.
+
+Para comprobar si Python quedó bien instalado, abre una ventana de `cmd` y
+escribe:
+
+```
+py --version
+```
+
+Si responde con un número de versión, el `.bat` va a funcionar.
+
+### La ventana se abre y se cierra de inmediato
+
+Suele ser una versión vieja del `.bat`. Descarga de nuevo esta rama: el
+lanzador actual siempre deja la ventana abierta y explica el error.
+
+### "no se pudieron descargar las dependencias"
+
+Falta internet, o el antivirus/proxy de la empresa está bloqueando la descarga
+de paquetes. Prueba con otra red.
 
 ### Arrancarla a mano (opcional)
 
