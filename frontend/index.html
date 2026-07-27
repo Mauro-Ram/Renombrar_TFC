@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Renombrar TFC — Renombrado masivo de comprobantes</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Renombrar TFC</h1>
+    <p>Sube comprobantes SPEI en PDF, revisa los datos y descarga los archivos ya renombrados.</p>
+  </header>
+
+  <main>
+    <section id="dropzone" class="dropzone">
+      <p>Arrastra aquí tus archivos PDF, o</p>
+      <label class="file-button">
+        Seleccionar archivos
+        <input type="file" id="file-input" accept="application/pdf" multiple hidden />
+      </label>
+    </section>
+
+    <section id="table-section" class="hidden">
+      <div class="toolbar">
+        <span id="status-text"></span>
+        <button id="download-btn" disabled>Descargar ZIP</button>
+      </div>
+      <div class="table-wrap">
+        <table id="files-table">
+          <thead>
+            <tr>
+              <th>Archivo original</th>
+              <th>Fecha (DDMMAA)</th>
+              <th>Concepto</th>
+              <th>Importe</th>
+              <th>Empresa</th>
+              <th>Banco</th>
+              <th>Beneficiario</th>
+              <th>Semana (SEM)</th>
+              <th>Nombre final</th>
+            </tr>
+          </thead>
+          <tbody id="files-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
