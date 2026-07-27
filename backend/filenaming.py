@@ -1,6 +1,6 @@
 """Construcción del nombre final de archivo a partir de los campos capturados."""
 
-from parser import sanitize_token
+from text_utils import sanitize_token
 
 REQUIRED_FIELDS = ["fecha", "concepto", "importe", "empresa_code", "banco_code", "beneficiario", "sem"]
 

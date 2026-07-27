@@ -1,18 +1,19 @@
 """Extracción de datos de comprobantes SPEI en PDF.
 
-Cada banco tiene su propio formato de comprobante (etiquetas y layout
-distintos), así que cada uno tiene su propia función `parse_<banco>` que
+Cada formato de comprobante tiene su propio layout (etiquetas y orden
+distintos), así que cada uno tiene su propia función `parse_<formato>` que
 recibe el texto normalizado del PDF y devuelve los campos "crudos" antes de
-darles formato. `detect_bank` decide qué parser usar según config.BANK_PROFILES.
+darles formato. `detect_format` decide qué parser usar según
+config.FORMAT_PROFILES.
 """
 
 import io
 import re
-import unicodedata
 
 from pypdf import PdfReader
 
-from config import BANK_PROFILES, EMPRESA_PROFILES
+from config import EMPRESA_PROFILES, FORMAT_PROFILES
+from text_utils import sanitize_token, strip_accents  # noqa: F401 (reexport)
 
 MESES_ES = {
     "ene": "01", "feb": "02", "mar": "03", "abr": "04",
@@ -71,6 +72,26 @@ BANORTE_LABELS = [
     "Confirmación",
 ]
 
+# Etiquetas del "Comprobante de transferencia" que emite la plataforma de
+# dispersión. Este comprobante NO dice desde qué banco salió el dinero
+# ("Banco destino" es el del beneficiario), así que el banco del nombre de
+# archivo se toma del concentrado de Excel.
+TRANSFERENCIA_LABELS = [
+    "Emisor:",
+    "Cuenta de retiro:",
+    "Tipo de operación:",
+    "Beneficiario:",
+    "Cuenta destino:",
+    "Banco destino:",
+    "Importe:",
+    "Fecha y hora de operación:",
+    "Número de operación:",
+    "Concepto:",
+    "Referencia:",
+    "Clave de rastreo:",
+    "Estatus:",
+]
+
 
 def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
@@ -93,20 +114,6 @@ def _extract_between(text: str, label: str, labels_order: list[str]) -> str | No
         return None
     value = match.group(1).strip(" :")
     return value or None
-
-
-def strip_accents(text: str) -> str:
-    normalized = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in normalized if not unicodedata.combining(c))
-
-
-def sanitize_token(text: str) -> str:
-    """Convierte texto libre en un token seguro para nombre de archivo."""
-    text = strip_accents(text).upper()
-    text = re.sub(r"[^A-Z0-9 ._-]", "", text)
-    text = re.sub(r"\s+", "_", text.strip())
-    text = re.sub(r"_+", "_", text)
-    return text
 
 
 def format_fecha(raw: str) -> str | None:
@@ -160,6 +167,7 @@ def parse_santander(text: str) -> dict:
         "importe_raw": _extract_between(text, "Importe:", SANTANDER_LABELS),
         "beneficiario_raw": name_after_dash(cuenta_abono) if cuenta_abono else None,
         "empresa_source": cuenta_cargo,
+        "operacion_id": _extract_between(text, "Clave de Rastreo:", SANTANDER_LABELS),
     }
 
 
@@ -170,17 +178,44 @@ def parse_banorte(text: str) -> dict:
         "importe_raw": _extract_between(text, "Importe a Transferir", BANORTE_LABELS),
         "beneficiario_raw": _extract_between(text, "Nombre del Beneficiario", BANORTE_LABELS),
         "empresa_source": _extract_between(text, "Nombre del Ordenante", BANORTE_LABELS),
+        "operacion_id": _extract_between(text, "Clave de Rastreo", BANORTE_LABELS),
+    }
+
+
+def parse_transferencia(text: str) -> dict:
+    """Comprobante de dispersión. El "Concepto" suele ser genérico ('ABONO'),
+    así que el concepto real (la requisición) viene del concentrado."""
+    return {
+        "fecha_raw": _extract_between(text, "Fecha y hora de operación:", TRANSFERENCIA_LABELS),
+        "concepto_raw": _extract_between(text, "Concepto:", TRANSFERENCIA_LABELS),
+        "importe_raw": _extract_between(text, "Importe:", TRANSFERENCIA_LABELS),
+        "beneficiario_raw": _extract_between(text, "Beneficiario:", TRANSFERENCIA_LABELS),
+        "empresa_source": _extract_between(text, "Emisor:", TRANSFERENCIA_LABELS),
+        "operacion_id": _extract_between(text, "Clave de rastreo:", TRANSFERENCIA_LABELS),
+        "banco_destino": _extract_between(text, "Banco destino:", TRANSFERENCIA_LABELS),
     }
 
 
 PARSERS = {
     "santander": parse_santander,
     "banorte": parse_banorte,
+    "transferencia": parse_transferencia,
 }
 
+# Conceptos que el comprobante trae por defecto y que no describen el pago:
+# si solo tenemos esto, el concepto real debe venir del concentrado.
+CONCEPTOS_GENERICOS = {"ABONO", "PAGO", "TRANSFERENCIA", "SPEI", "DEPOSITO"}
 
-def detect_bank(text: str) -> dict | None:
-    for profile in BANK_PROFILES:
+# Avisos que el concentrado puede resolver: si el emparejamiento aporta el
+# dato, matching.apply_match los retira para no alarmar de más.
+WARN_SIN_BANCO = "Este comprobante no indica el banco pagador; se toma del concentrado o se captura a mano."
+WARN_SIN_CONCEPTO = "No se encontró el concepto en el comprobante."
+WARN_CONCEPTO_GENERICO_PREFIJO = "El concepto del comprobante es genérico"
+WARN_SIN_BENEFICIARIO = "No se encontró el beneficiario en el comprobante."
+
+
+def detect_format(text: str) -> dict | None:
+    for profile in FORMAT_PROFILES:
         if all(sig in text for sig in profile["signatures"]):
             return profile
     return None
@@ -189,8 +224,9 @@ def detect_bank(text: str) -> dict | None:
 def detect_empresa(source_text: str) -> dict | None:
     if not source_text:
         return None
+    upper = strip_accents(source_text).upper()
     for profile in EMPRESA_PROFILES:
-        if any(sig in source_text for sig in profile["signatures"]):
+        if any(strip_accents(sig).upper() in upper for sig in profile["signatures"]):
             return profile
     return None
 
@@ -215,22 +251,22 @@ def parse_pdf_bytes(filename: str, data: bytes) -> dict:
     if not text:
         warnings.append("El PDF no contiene texto extraíble (¿es un escaneo/imagen?).")
 
-    bank_profile = detect_bank(text) if text else None
+    format_profile = detect_format(text) if text else None
     parsed = {}
-    if not bank_profile:
-        warnings.append("No se reconoció el banco/formato del comprobante; selecciónalo y completa los datos manualmente.")
+    if not format_profile:
+        warnings.append(
+            "No se reconoció el formato del comprobante; completa los datos manualmente."
+        )
     else:
-        parser_fn = PARSERS.get(bank_profile["key"])
+        parser_fn = PARSERS.get(format_profile["key"])
         parsed = parser_fn(text) if parser_fn else {}
-        if bank_profile["key"] == "banorte":
+        if format_profile["key"] == "banorte":
             warnings.append(
                 "Este formato (Banorte) a veces inserta espacios dentro de palabras al extraer el texto; "
                 "revisa Concepto y Beneficiario antes de descargar."
             )
 
     empresa_profile = detect_empresa(parsed.get("empresa_source") or "")
-    if not empresa_profile:
-        warnings.append("No se reconoció la empresa/cuenta origen; selecciónala manualmente.")
 
     fecha_raw = parsed.get("fecha_raw")
     importe_raw = parsed.get("importe_raw")
@@ -239,6 +275,13 @@ def parse_pdf_bytes(filename: str, data: bytes) -> dict:
 
     fecha = format_fecha(fecha_raw) if fecha_raw else None
     importe = format_importe(importe_raw) if importe_raw else None
+
+    # El banco solo se conoce cuando el propio formato lo identifica; los
+    # comprobantes de dispersión lo dejan vacío para que lo aporte el Excel.
+    banco_code = format_profile["code"] if format_profile else ""
+
+    concepto = concepto_raw or ""
+    concepto_generico = bool(concepto) and concepto.strip().upper() in CONCEPTOS_GENERICOS
 
     if fecha_raw and not fecha:
         warnings.append("No se pudo interpretar la fecha del comprobante.")
@@ -249,20 +292,32 @@ def parse_pdf_bytes(filename: str, data: bytes) -> dict:
     if not importe_raw:
         warnings.append("No se encontró el importe en el comprobante.")
     if not concepto_raw:
-        warnings.append("No se encontró el concepto en el comprobante.")
+        warnings.append(WARN_SIN_CONCEPTO)
+    elif concepto_generico:
+        warnings.append(
+            f"{WARN_CONCEPTO_GENERICO_PREFIJO} ('{concepto}'); usa la requisición del concentrado."
+        )
     if not beneficiario:
-        warnings.append("No se encontró el beneficiario en el comprobante.")
+        warnings.append(WARN_SIN_BENEFICIARIO)
+    if format_profile and not banco_code:
+        warnings.append(WARN_SIN_BANCO)
+    if not empresa_profile:
+        warnings.append("No se reconoció la empresa/cuenta origen; selecciónala manualmente.")
 
     return {
         "original_filename": filename,
         "fecha": fecha or "",
-        "concepto": concepto_raw or "",
+        "concepto": concepto,
+        "concepto_generico": concepto_generico,
         "importe": importe or "",
         "beneficiario": beneficiario or "",
         "empresa_code": empresa_profile["code"] if empresa_profile else "",
         "empresa_detected": bool(empresa_profile),
-        "banco_code": bank_profile["code"] if bank_profile else "",
-        "banco_detected": bool(bank_profile),
+        "empresa_source": parsed.get("empresa_source") or "",
+        "banco_code": banco_code,
+        "banco_detected": bool(banco_code),
+        "formato": format_profile["key"] if format_profile else "",
+        "operacion_id": parsed.get("operacion_id") or "",
         "sem": "",
         "warnings": warnings,
     }

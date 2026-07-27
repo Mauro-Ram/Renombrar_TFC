@@ -13,15 +13,36 @@
   </header>
 
   <main>
-    <section id="dropzone" class="dropzone">
-      <p>Arrastra aquí tus archivos PDF, o</p>
-      <label class="file-button">
-        Seleccionar archivos
-        <input type="file" id="file-input" accept="application/pdf" multiple hidden />
-      </label>
+    <section class="step">
+      <h2><span class="step-num">1</span> Concentrado de pagos <span class="optional">(opcional)</span></h2>
+      <p class="step-help">
+        El Excel con los pagos realizados. De ahí se toman la requisición, el nombre,
+        el banco y el monto; la fecha siempre sale del comprobante. Sin concentrado la
+        app funciona igual, pero esos datos se capturan a mano.
+      </p>
+      <div id="index-dropzone" class="dropzone compact">
+        <p>Arrastra aquí el concentrado (.xlsx o .csv), o</p>
+        <label class="file-button">
+          Seleccionar concentrado
+          <input type="file" id="index-input" accept=".xlsx,.csv,.txt" hidden />
+        </label>
+      </div>
+      <div id="index-summary" class="summary hidden"></div>
     </section>
 
-    <section id="table-section" class="hidden">
+    <section class="step">
+      <h2><span class="step-num">2</span> Comprobantes SPEI</h2>
+      <div id="dropzone" class="dropzone">
+        <p>Arrastra aquí tus archivos PDF, o</p>
+        <label class="file-button">
+          Seleccionar archivos
+          <input type="file" id="file-input" accept="application/pdf" multiple hidden />
+        </label>
+      </div>
+    </section>
+
+    <section id="table-section" class="step hidden">
+      <h2><span class="step-num">3</span> Revisar y descargar</h2>
       <div class="toolbar">
         <span id="status-text"></span>
         <button id="download-btn" disabled>Descargar ZIP</button>
@@ -32,7 +53,7 @@
             <tr>
               <th>Archivo original</th>
               <th>Fecha (DDMMAA)</th>
-              <th>Concepto</th>
+              <th>Concepto / Requisición</th>
               <th>Importe</th>
               <th>Empresa</th>
               <th>Banco</th>
@@ -46,6 +67,9 @@
       </div>
     </section>
   </main>
+
+  <datalist id="bancos-list"></datalist>
+  <datalist id="empresas-list"></datalist>
 
   <script src="/app.js"></script>
 </body>
