@@ -101,8 +101,8 @@ Son **dos proyectos distintos**, no versiones del mismo:
 **Proyecto base** — renombrado a partir del PDF solamente:
 
 - **`Rename_NB`**: rama de nube, para desplegarse en un servidor (VPS/Docker).
-- **`Rename_PC`**: rama de uso local, mismo código más `run_local.bat` para
-  correrla en una PC de oficina (Windows) sin servidor ni Docker.
+- **`Rename_PC`**: rama de uso local, para correrla en una PC de oficina
+  (Windows) sin servidor ni Docker.
 
 **Proyecto multi-banco** — agrega el concentrado de pagos como índice:
 
@@ -113,10 +113,10 @@ Son **dos proyectos distintos**, no versiones del mismo:
 
 Los cambios de esta rama **no están** en `Rename_NB` ni en `Rename_PC`.
 
-## Ejecutar en local (sin Docker)
+## Ejecutar en la PC
 
-Requiere tener [Python 3.10+](https://www.python.org/downloads/) instalado en
-la PC (al instalarlo, marcar la casilla "Add Python to PATH").
+Lo único que hay que instalar es [Python 3.10+](https://www.python.org/downloads/)
+(al instalarlo, marcar la casilla **"Add Python to PATH"**).
 
 1. Descarga/clona esta rama del repositorio.
 2. Haz doble clic en `run_local.bat`.
@@ -125,36 +125,16 @@ la PC (al instalarlo, marcar la casilla "Add Python to PATH").
 4. Para volver a usar la app, solo vuelve a hacer doble clic en `run_local.bat`
    (la segunda vez es más rápido porque ya no reinstala nada).
 
-## Ejecutar en local con Python directamente
+La app corre **solo en esta computadora**: `127.0.0.1` no es accesible desde la
+red, y ni los PDF ni el concentrado salen del equipo.
+
+### Arrancarla a mano (opcional)
 
 ```bash
 cd backend
 pip install -r requirements.txt
 uvicorn app:app --reload
 ```
-
-Abre http://localhost:8000
-
-## Ejecutar con Docker
-
-```bash
-docker compose up --build
-```
-
-Abre http://localhost:8000
-
-## Desplegar en Hostinger
-
-El *shared hosting* de Hostinger solo sirve PHP y no permite correr una app
-Python persistente. Para esta app necesitas un plan **VPS de Hostinger**
-(cualquiera que soporte Docker):
-
-1. Entra al VPS por SSH e instala Docker (Hostinger lo ofrece como plantilla
-   de sistema operativo, o instálalo manualmente).
-2. Copia este repositorio al VPS (`git clone ...`).
-3. Corre `docker compose up -d --build`.
-4. Configura un dominio/subdominio apuntando al VPS y, opcionalmente, un
-   proxy inverso (nginx/Caddy) con HTTPS hacia el puerto `8000`.
 
 ## Agregar un banco, empresa o formato nuevos
 
@@ -178,6 +158,7 @@ por un formato no reconocido.
 ## Estructura del proyecto
 
 ```
+run_local.bat     # Lanzador: doble clic para usar la app
 backend/
   app.py          # API FastAPI (parseo, emparejamiento y generación del ZIP)
   parser.py       # Extracción de texto y campos del PDF
@@ -186,7 +167,7 @@ backend/
   filenaming.py   # Construcción del nombre final de archivo
   config.py       # Catálogo de formatos, empresas y códigos de banco
   text_utils.py   # Normalización de texto compartida
+  requirements.txt
 frontend/
   index.html, app.js, styles.css   # UI sin frameworks, sin paso de build
-Dockerfile, docker-compose.yml
 ```
