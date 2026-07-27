@@ -13,11 +13,24 @@ Ejemplo:
 240726_N129_SLP_OFICINAS_CHAPULTEPEC_IND_H2_4350_FUENTES_STDR_JONATAN_CAMPOS_CORTEZ_SEM_30.3.pdf
 ```
 
-- **Fecha, Concepto, Importe y Beneficiario** se extraen automáticamente del PDF.
+- **Fecha, Concepto, Importe y Beneficiario (Cuenta Abono)** se extraen
+  automáticamente del PDF.
 - **Empresa** (cuenta origen) y **Banco** se detectan por patrones de texto/diseño
   del comprobante (ver `backend/config.py`); si no se reconocen, se seleccionan
   manualmente en la tabla.
 - **Semana (SEM)** siempre se captura a mano, ya que no aparece en el comprobante.
+
+### Bancos y empresas soportados hoy
+
+| Banco | Código en el nombre | Formato de comprobante |
+|---|---|---|
+| Santander | `STDR` | "Comprobante de Operación" (SuperLínea), interbancaria o mismo banco |
+| Banorte | `BNT` | "Reporte de Transferencia a Otros Bancos" |
+
+| Empresa (cuenta origen) | Código en el nombre |
+|---|---|
+| The Fuentes Corporation | `FUENTES` |
+| Janupi Construcciones | `JANUPI` |
 
 ## Cómo funciona
 
@@ -62,16 +75,17 @@ Python persistente. Para esta app necesitas un plan **VPS de Hostinger**
 
 ## Agregar un banco o empresa nuevos
 
-Edita `backend/config.py`:
+- **Empresa nueva**: solo edita `EMPRESA_PROFILES` en `backend/config.py` con
+  un `signatures` (texto que identifica la cuenta origen en el comprobante) y
+  el `code` correspondiente. No requiere tocar `parser.py`.
+- **Banco nuevo**: cada banco trae su propio formato de comprobante (distintas
+  etiquetas y orden), así que además de agregar la entrada a `BANK_PROFILES`
+  (con `key`, `signatures` y `code`) hay que escribir una función
+  `parse_<banco>(text)` en `backend/parser.py` (sigue el patrón de
+  `parse_santander`/`parse_banorte`) y registrarla en el diccionario `PARSERS`.
 
-- `BANK_PROFILES`: agrega un objeto con `signatures` (frases que siempre
-  aparecen en ese tipo de comprobante) y el `code` que debe usarse en el
-  nombre de archivo.
-- `EMPRESA_PROFILES`: agrega un objeto con `signatures` (texto que aparece en
-  el campo "Cuenta Cargo" del comprobante) y el `code` correspondiente.
-
-Si un comprobante no coincide con ningún perfil, la app deja el campo vacío
-y lo marca como pendiente para selección/captura manual — no se pierde
+Si un comprobante no coincide con ningún perfil, la app deja los campos vacíos
+y los marca como pendientes para selección/captura manual — no se pierde
 ningún archivo por un formato no reconocido.
 
 ## Estructura del proyecto

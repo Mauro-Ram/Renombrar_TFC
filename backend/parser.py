@@ -1,4 +1,10 @@
-"""Extracción de datos de comprobantes SPEI en PDF."""
+"""Extracción de datos de comprobantes SPEI en PDF.
+
+Cada banco tiene su propio formato de comprobante (etiquetas y layout
+distintos), así que cada uno tiene su propia función `parse_<banco>` que
+recibe el texto normalizado del PDF y devuelve los campos "crudos" antes de
+darles formato. `detect_bank` decide qué parser usar según config.BANK_PROFILES.
+"""
 
 import io
 import re
@@ -8,10 +14,16 @@ from pypdf import PdfReader
 
 from config import BANK_PROFILES, EMPRESA_PROFILES
 
-# Etiquetas tal como aparecen (en orden) en un comprobante SPEI tipo BBVA.
-# Se usan para delimitar dónde termina el valor de un campo: todo lo que
-# hay entre una etiqueta y la siguiente es el valor de la primera.
-LABELS = [
+MESES_ES = {
+    "ene": "01", "feb": "02", "mar": "03", "abr": "04",
+    "may": "05", "jun": "06", "jul": "07", "ago": "08",
+    "sep": "09", "oct": "10", "nov": "11", "dic": "12",
+}
+
+# Etiquetas del comprobante Santander "Comprobante de Operación", en el
+# orden en que aparecen. Incluye tanto transferencias interbancarias
+# ("Fecha y hora de Alta") como del mismo banco ("Fecha aplicación").
+SANTANDER_LABELS = [
     "Tipo de Operación:",
     "Contrato:",
     "Usuario:",
@@ -26,6 +38,7 @@ LABELS = [
     "Importe:",
     "Concepto:",
     "Fecha y hora de Alta:",
+    "Fecha aplicación:",
     "Fecha y hora de Liquidación:",
     "Clave de Rastreo:",
     "RFC Beneficiario:",
@@ -35,26 +48,50 @@ LABELS = [
     "Banco Destino:",
 ]
 
+# Etiquetas del "Reporte de Transferencia a Otros Bancos" de Banorte. Este
+# formato viene de imprimir una página web a PDF y con frecuencia inserta
+# espacios sueltos dentro de las palabras (p. ej. "T ransferir"); por eso la
+# extracción usa un patrón tolerante a espacios (ver _flex_label_pattern).
+BANORTE_LABELS = [
+    "Cuenta/ CLABE Ordenante",
+    "Nombre del Ordenante",
+    "RFC Ordenante",
+    "Moneda",
+    "ID Tercero",
+    "Nombre del Beneficiario",
+    "Cuenta/ CLABE Beneficiario",
+    "Titular de la Cuenta",
+    "RFC Beneficiario",
+    "Importe a Transferir",
+    "IVA",
+    "Fecha Aplicación",
+    "Referencia numérica",
+    "Propósito de la Transferencia",
+    "Clave de Rastreo",
+    "Confirmación",
+]
+
 
 def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _label_pattern(label: str) -> str:
-    return r"\s+".join(re.escape(word) for word in label.split())
+def _flex_label_pattern(label: str) -> str:
+    """Patrón para una etiqueta que tolera espacios sueltos entre
+    caracteres, ya que algunos PDFs (Banorte) los insertan al extraer texto."""
+    chars = [c for c in label if not c.isspace()]
+    return r"\s*".join(re.escape(c) for c in chars)
 
 
-def _extract_between(text: str, label: str) -> str | None:
-    if label not in LABELS:
-        raise ValueError(f"Etiqueta desconocida: {label}")
-    idx = LABELS.index(label)
-    following = LABELS[idx + 1 :]
-    lookahead_labels = [_label_pattern(l) for l in following] or [r"$"]
-    pattern = _label_pattern(label) + r"\s*(.*?)\s*(?=" + "|".join(lookahead_labels) + r"|$)"
+def _extract_between(text: str, label: str, labels_order: list[str]) -> str | None:
+    idx = labels_order.index(label)
+    following = labels_order[idx + 1 :]
+    lookahead = [_flex_label_pattern(l) for l in following] or [r"$"]
+    pattern = _flex_label_pattern(label) + r"\s*(.*?)\s*(?=" + "|".join(lookahead) + r"|$)"
     match = re.search(pattern, text)
     if not match:
         return None
-    value = match.group(1).strip()
+    value = match.group(1).strip(" :")
     return value or None
 
 
@@ -73,17 +110,28 @@ def sanitize_token(text: str) -> str:
 
 
 def format_fecha(raw: str) -> str | None:
-    """'24/07/2026 17:47:52' -> '240726' (DDMMAA)."""
-    match = re.search(r"(\d{2})/(\d{2})/(\d{4})", raw or "")
-    if not match:
+    """'24/07/2026 17:47:52' o '05/01/2026' -> '240726' (DDMMAA).
+    También soporta fechas con mes en texto: '27/jul./2026' -> '270726'."""
+    if not raw:
         return None
-    dd, mm, yyyy = match.groups()
-    return f"{dd}{mm}{yyyy[-2:]}"
+    match = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", raw)
+    if match:
+        dd, mm, yyyy = match.groups()
+        return f"{dd.zfill(2)}{mm.zfill(2)}{yyyy[-2:]}"
+    match = re.search(r"(\d{1,2})/([A-Za-zÁÉÍÓÚáéíóúñÑ]{3,4})\.?/(\d{4})", raw)
+    if match:
+        dd, mon, yyyy = match.groups()
+        mm = MESES_ES.get(strip_accents(mon).lower().rstrip("."))
+        if mm:
+            return f"{dd.zfill(2)}{mm}{yyyy[-2:]}"
+    return None
 
 
 def format_importe(raw: str) -> str | None:
     """'$ 4,350.00 MXN' -> '4350' (o '4350.50' si hay centavos)."""
-    match = re.search(r"([\d,]+(?:\.\d{2})?)", raw or "")
+    if not raw:
+        return None
+    match = re.search(r"([\d,]+(?:\.\d{2})?)", raw)
     if not match:
         return None
     value = match.group(1).replace(",", "")
@@ -100,6 +148,37 @@ def name_after_dash(raw: str) -> str | None:
     return parts[1].strip() if len(parts) == 2 else raw.strip()
 
 
+def parse_santander(text: str) -> dict:
+    cuenta_cargo = _extract_between(text, "Cuenta Cargo:", SANTANDER_LABELS)
+    cuenta_abono = _extract_between(text, "Cuenta Abono:", SANTANDER_LABELS)
+    fecha_raw = _extract_between(text, "Fecha y hora de Alta:", SANTANDER_LABELS) or _extract_between(
+        text, "Fecha aplicación:", SANTANDER_LABELS
+    )
+    return {
+        "fecha_raw": fecha_raw,
+        "concepto_raw": _extract_between(text, "Concepto:", SANTANDER_LABELS),
+        "importe_raw": _extract_between(text, "Importe:", SANTANDER_LABELS),
+        "beneficiario_raw": name_after_dash(cuenta_abono) if cuenta_abono else None,
+        "empresa_source": cuenta_cargo,
+    }
+
+
+def parse_banorte(text: str) -> dict:
+    return {
+        "fecha_raw": _extract_between(text, "Fecha Aplicación", BANORTE_LABELS),
+        "concepto_raw": _extract_between(text, "Propósito de la Transferencia", BANORTE_LABELS),
+        "importe_raw": _extract_between(text, "Importe a Transferir", BANORTE_LABELS),
+        "beneficiario_raw": _extract_between(text, "Nombre del Beneficiario", BANORTE_LABELS),
+        "empresa_source": _extract_between(text, "Nombre del Ordenante", BANORTE_LABELS),
+    }
+
+
+PARSERS = {
+    "santander": parse_santander,
+    "banorte": parse_banorte,
+}
+
+
 def detect_bank(text: str) -> dict | None:
     for profile in BANK_PROFILES:
         if all(sig in text for sig in profile["signatures"]):
@@ -107,11 +186,11 @@ def detect_bank(text: str) -> dict | None:
     return None
 
 
-def detect_empresa(cuenta_cargo_text: str) -> dict | None:
-    if not cuenta_cargo_text:
+def detect_empresa(source_text: str) -> dict | None:
+    if not source_text:
         return None
     for profile in EMPRESA_PROFILES:
-        if any(sig in cuenta_cargo_text for sig in profile["signatures"]):
+        if any(sig in source_text for sig in profile["signatures"]):
             return profile
     return None
 
@@ -137,22 +216,29 @@ def parse_pdf_bytes(filename: str, data: bytes) -> dict:
         warnings.append("El PDF no contiene texto extraíble (¿es un escaneo/imagen?).")
 
     bank_profile = detect_bank(text) if text else None
+    parsed = {}
     if not bank_profile:
-        warnings.append("No se reconoció el banco/formato del comprobante; selecciónalo manualmente.")
+        warnings.append("No se reconoció el banco/formato del comprobante; selecciónalo y completa los datos manualmente.")
+    else:
+        parser_fn = PARSERS.get(bank_profile["key"])
+        parsed = parser_fn(text) if parser_fn else {}
+        if bank_profile["key"] == "banorte":
+            warnings.append(
+                "Este formato (Banorte) a veces inserta espacios dentro de palabras al extraer el texto; "
+                "revisa Concepto y Beneficiario antes de descargar."
+            )
 
-    cuenta_cargo_raw = _extract_between(text, "Cuenta Cargo:") if text else None
-    empresa_profile = detect_empresa(cuenta_cargo_raw or "")
+    empresa_profile = detect_empresa(parsed.get("empresa_source") or "")
     if not empresa_profile:
         warnings.append("No se reconoció la empresa/cuenta origen; selecciónala manualmente.")
 
-    fecha_raw = _extract_between(text, "Fecha y hora de Alta:") if text else None
-    concepto_raw = _extract_between(text, "Concepto:") if text else None
-    importe_raw = _extract_between(text, "Importe:") if text else None
-    cuenta_abono_raw = _extract_between(text, "Cuenta Abono:") if text else None
+    fecha_raw = parsed.get("fecha_raw")
+    importe_raw = parsed.get("importe_raw")
+    concepto_raw = parsed.get("concepto_raw")
+    beneficiario = parsed.get("beneficiario_raw")
 
     fecha = format_fecha(fecha_raw) if fecha_raw else None
     importe = format_importe(importe_raw) if importe_raw else None
-    beneficiario = name_after_dash(cuenta_abono_raw) if cuenta_abono_raw else None
 
     if fecha_raw and not fecha:
         warnings.append("No se pudo interpretar la fecha del comprobante.")
