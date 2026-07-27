@@ -101,12 +101,15 @@ def strip_accents(text: str) -> str:
 
 
 def sanitize_token(text: str) -> str:
-    """Convierte texto libre en un token seguro para nombre de archivo."""
+    """Convierte texto libre en un token seguro para nombre de archivo.
+
+    Los campos del nombre se separan con espacios, así que aquí no se
+    generan guiones bajos: los que vengan en el texto se vuelven espacios.
+    """
     text = strip_accents(text).upper()
     text = re.sub(r"[^A-Z0-9 ._-]", "", text)
-    text = re.sub(r"\s+", "_", text.strip())
-    text = re.sub(r"_+", "_", text)
-    return text
+    text = text.replace("_", " ")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def format_fecha(raw: str) -> str | None:

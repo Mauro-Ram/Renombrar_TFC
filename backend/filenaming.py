@@ -19,7 +19,7 @@ def build_filename(fields: dict, extension: str) -> str:
     sem = sanitize_token(fields.get("sem", ""))
 
     parts = [fecha, concepto, importe, empresa, banco, beneficiario, "SEM", sem]
-    base = "_".join(p for p in parts if p)
+    base = " ".join(p for p in parts if p)
     ext = extension if extension.startswith(".") else f".{extension}"
     return f"{base}{ext}"
 
