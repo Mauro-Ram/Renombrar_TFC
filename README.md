@@ -1,4 +1,4 @@
-# Renombrar TFC
+# Renombrar TFC — multi-banco (con concentrado)
 
 Aplicación web interna para renombrar de forma masiva comprobantes SPEI en PDF,
 usando el formato:
@@ -96,12 +96,24 @@ comprobante**, para detectar los que faltan por descargar del banco.
 
 ## Ramas del repositorio
 
-- **`Rename_NB`**: rama de nube, para desplegarse en un servidor (VPS/Docker).
-- **`Rename_PC`** (esta rama): rama de uso local, mismo código más
-  `run_local.bat` para correrla directamente en una PC de oficina (Windows)
-  sin servidor ni Docker.
+Son **dos proyectos distintos**, no versiones del mismo:
 
-## Ejecutar en local (rama `Rename_PC`, sin Docker)
+**Proyecto base** — renombrado a partir del PDF solamente:
+
+- **`Rename_NB`**: rama de nube, para desplegarse en un servidor (VPS/Docker).
+- **`Rename_PC`**: rama de uso local, mismo código más `run_local.bat` para
+  correrla en una PC de oficina (Windows) sin servidor ni Docker.
+
+**Proyecto multi-banco** — agrega el concentrado de pagos como índice:
+
+- **`Rename_PC_Multiple_BK`** (esta rama): para los SPEI de pago que salen de
+  múltiples cuentas, donde el banco no es fijo y el comprobante no trae ni la
+  requisición ni el banco pagador. Se usa igual que `Rename_PC` (local, con
+  `run_local.bat`), pero además acepta el concentrado de Excel.
+
+Los cambios de esta rama **no están** en `Rename_NB` ni en `Rename_PC`.
+
+## Ejecutar en local (sin Docker)
 
 Requiere tener [Python 3.10+](https://www.python.org/downloads/) instalado en
 la PC (al instalarlo, marcar la casilla "Add Python to PATH").
