@@ -11,12 +11,13 @@ let items = []; // { id, file, fields: {...}, warnings: [] }
 let empresaOptions = [];
 let bancoOptions = [];
 
+// Debe coincidir con sanitize_token del backend: los campos se separan con
+// espacios, así que el nombre final no lleva guiones bajos.
 function sanitizeToken(text) {
   if (!text) return "";
   const noAccents = text.normalize("NFKD").replace(/[̀-ͯ]/g, "");
   let out = noAccents.toUpperCase().replace(/[^A-Z0-9 ._-]/g, "");
-  out = out.trim().replace(/\s+/g, "_").replace(/_+/g, "_");
-  return out;
+  return out.replace(/_/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function buildFilename(fields, extension) {
@@ -30,7 +31,7 @@ function buildFilename(fields, extension) {
     "SEM",
     sanitizeToken(fields.sem),
   ].filter(Boolean);
-  return `${parts.join("_")}.${extension}`;
+  return `${parts.join(" ")}.${extension}`;
 }
 
 function extOf(filename) {
