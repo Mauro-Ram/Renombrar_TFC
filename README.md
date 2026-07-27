@@ -45,8 +45,9 @@ copias dentro del ZIP.
 ## Ramas del repositorio
 
 - **`Rename_NB`**: rama de nube, para desplegarse en un servidor (VPS/Docker).
-- **`Rename_PC`**: rama de uso local, mismo código más `run_local.bat` para
-  correrla directamente en una PC de oficina (Windows) sin servidor ni Docker.
+- **`Rename_PC`** (esta rama): rama de uso local, mismo código más
+  `run_local.bat` para correrla directamente en una PC de oficina (Windows)
+  sin servidor ni Docker.
 
 ## Ejecutar en local (rama `Rename_PC`, sin Docker)
 
