@@ -42,6 +42,13 @@ Ejemplo:
 Los archivos originales **no se modifican**; el renombrado ocurre solo sobre las
 copias dentro del ZIP.
 
+## Ramas del repositorio
+
+- **`Rename_NB`** (esta rama): rama de nube, para desplegarse en un servidor
+  (VPS/Docker).
+- **`Rename_PC`**: rama de uso local, mismo código más un script para correrla
+  directamente en una PC de oficina (Windows) sin servidor ni Docker.
+
 ## Ejecutar en local
 
 ```bash
