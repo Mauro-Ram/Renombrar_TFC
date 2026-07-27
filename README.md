@@ -42,7 +42,25 @@ Ejemplo:
 Los archivos originales **no se modifican**; el renombrado ocurre solo sobre las
 copias dentro del ZIP.
 
-## Ejecutar en local
+## Ramas del repositorio
+
+- **`Rename_NB`**: rama de nube, para desplegarse en un servidor (VPS/Docker).
+- **`Rename_PC`**: rama de uso local, mismo código más `run_local.bat` para
+  correrla directamente en una PC de oficina (Windows) sin servidor ni Docker.
+
+## Ejecutar en local (rama `Rename_PC`, sin Docker)
+
+Requiere tener [Python 3.10+](https://www.python.org/downloads/) instalado en
+la PC (al instalarlo, marcar la casilla "Add Python to PATH").
+
+1. Descarga/clona esta rama del repositorio.
+2. Haz doble clic en `run_local.bat`.
+3. El script crea un entorno virtual, instala las dependencias y abre
+   automáticamente http://127.0.0.1:8000 en el navegador.
+4. Para volver a usar la app, solo vuelve a hacer doble clic en `run_local.bat`
+   (la segunda vez es más rápido porque ya no reinstala nada).
+
+## Ejecutar en local con Python directamente
 
 ```bash
 cd backend
